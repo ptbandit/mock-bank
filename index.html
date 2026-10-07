@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="only light">
+  <title>모의고사 문제은행</title>
+  <style>
+    /* 한 열 작업 화면: 위에서 시험지·출제범위를 고르고 아래로 문제지가 이어짐 (밝은 화면 전용) */
+    :root {
+      --bg: #f3f5f4; --surface: #ffffff; --fg: #1d2624; --muted: #5d6b68; --line: #d5dcda;
+      --accent: #1f6b63; --accent-soft: #e3efec; --accent-fg: #ffffff;
+      --org-b: #2f5d8a; --org-e: #8a5a2f; --org-w: #5e3f86;
+      --hl: #fff1a8; --danger: #b42318;
+      --font: "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", sans-serif;
+      --r: 10px;
+      color-scheme: only light;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.6 var(--font); -webkit-font-smoothing: antialiased; }
+    [hidden] { display: none !important; }
+    button, select, input { font-family: inherit; }
+    .wrap { max-width: 820px; margin: 0 auto; padding-inline: 16px; padding-block: 20px 60px; display: flex; flex-direction: column; gap: 18px; }
+
+    .btn { font-size: 14px; font-weight: 600; border-radius: 8px; padding: 9px 16px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-fg); cursor: pointer; }
+    .btn.ghost { background: transparent; color: var(--accent); }
+    .btn.sm { padding: 5px 11px; font-size: 13px; }
+    .btn:disabled { opacity: .45; cursor: default; }
+    .btn:focus-visible, .dd-btn:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    /* 로그인 */
+    #login-view { max-width: 420px; margin: 12vh auto 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 28px 22px; text-align: center; }
+    #login-view h1 { font-size: 20px; margin: 0 0 4px; }
+    #login-view p { font-size: 13px; color: var(--muted); margin: 0 0 18px; }
+    .login-row { display: flex; gap: 8px; }
+    .login-row input { flex: 1; min-width: 0; font-size: 15px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; }
+    #login-error { color: var(--danger); font-size: 13px; margin-top: 12px; min-height: 20px; }
+
+    /* 헤더 */
+    .app-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-bottom: 2px solid var(--fg); padding-bottom: 10px; }
+    .app-header h1 { font-size: 19px; margin: 0; }
+    .user-box { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+    .user-code { background: var(--accent-soft); padding: 2px 9px; border-radius: 999px; }
+
+    .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .panel-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .panel-h h2 { font-size: 12.5px; letter-spacing: .06em; color: var(--muted); margin: 0; font-weight: 700; flex: 1; }
+
+    /* 기관별 회차 드롭다운 */
+    .orgs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    @media (max-width: 620px) { .orgs { grid-template-columns: 1fr; } }
+    .dd { position: relative; }
+    .dd-btn { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--fg); font: inherit; cursor: pointer; text-align: left; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+    .dd-name { font-weight: 600; flex: 1; min-width: 0; }
+    .dd-count { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .caret { color: var(--muted); transition: transform .15s; }
+    .dd.open .caret { transform: rotate(180deg); }
+    .dd-menu { position: absolute; z-index: 5; top: calc(100% + 6px); left: 0; right: 0; min-width: 250px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 10px 28px rgba(0,0,0,.14); padding: 8px; }
+    .dd-all { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-bottom: 1px solid var(--line); margin-bottom: 6px; font-weight: 600; font-size: 14px; cursor: pointer; }
+    .yr { display: grid; grid-template-columns: 54px 1fr; align-items: start; gap: 6px; padding: 4px 8px; }
+    .yr-label { font-size: 12.5px; color: var(--muted); padding-top: 5px; font-variant-numeric: tabular-nums; }
+    .rounds { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chipcb { position: relative; }
+    .chipcb input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+    .chipcb span { display: inline-block; padding: 4px 11px; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; font-variant-numeric: tabular-nums; }
+    .chipcb input:checked + span { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+    .chipcb input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .picked { display: flex; flex-wrap: wrap; gap: 6px; min-height: 26px; }
+    .tag { font-size: 12.5px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); display: inline-flex; gap: 6px; align-items: center; font-weight: 600; }
+    input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; flex: none; }
+
+    /* 과목·분야·영역 */
+    .select-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    @media (max-width: 620px) { .select-row { grid-template-columns: 1fr; } }
+    .select-row label { font-size: 12.5px; font-weight: 700; color: var(--muted); display: block; margin-bottom: 4px; }
+    .select-row select { width: 100%; font-size: 14px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--fg); }
+    .filter-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+    .muted { font-size: 13.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+    .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+    .toolbar .spacer { flex: 1; }
+    #save-status { padding: 2px 9px; border-radius: 999px; background: var(--line); }
+    #save-status.saving { background: #fdf3c4; }
+    #save-status.saved { background: #d3f0dc; }
+    #save-status.error { background: #fbd5d1; cursor: pointer; }
+
+    /* 문제지 */
+    .paper { display: flex; flex-direction: column; gap: 14px; }
+    .group { border: 1.5px solid var(--fg); border-radius: var(--r); background: var(--surface); overflow: hidden; }
+    .group > .common { padding: 14px 16px; border-bottom: 1.5px solid var(--fg); font-size: 14.5px; white-space: pre-wrap; word-break: keep-all; overflow-wrap: anywhere; }
+    .group > .common .lbl { display: block; font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+    .group .q { border: 0; border-radius: 0; border-top: 1px dashed var(--line); }
+    .group .q:nth-child(2) { border-top: 0; }
+    .q { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+    .meta { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; font-size: 12.5px; color: var(--muted); }
+    .meta .src { font-weight: 700; }
+    .meta .cls { margin-left: auto; }
+    .stem { font-size: 16px; line-height: 1.7; margin: 0; white-space: pre-wrap; word-break: keep-all; overflow-wrap: anywhere; }
+    .stem .no { font-weight: 700; margin-right: 4px; }
+    .sub { border: 1px solid var(--fg); padding: 10px 14px; font-size: 14.5px; white-space: pre-wrap; word-break: keep-all; overflow-wrap: anywhere; border-radius: 4px; display: flex; flex-direction: column; gap: 8px; }
+    .sub img { display: block; width: auto; height: auto; max-width: min(100%, 294px); max-height: 224px; object-fit: contain; margin: 0 auto; }
+    .img-err { color: var(--muted); font-size: 13px; }
+    .opts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 15px; }
+    .opts li { display: flex; gap: 8px; align-self: flex-start; max-width: calc(100% + 16px); padding: 2px 8px; margin-inline: -8px; border-radius: 4px; word-break: keep-all; overflow-wrap: anywhere; }
+    .opts li .c { flex: none; width: 1.3em; }
+    .q.show .opts li.ans { background: var(--hl); }
+    .btn-answer { align-self: flex-start; background: var(--fg); color: #fff; border: 0; padding: 3px 10px; font-size: 13px; font-weight: 700; border-radius: 4px; cursor: pointer; }
+    .q.show .btn-answer { background: var(--muted); }
+    .exp { display: none; border-top: 1px solid var(--line); padding-top: 10px; font-size: 14px; white-space: pre-wrap; word-break: keep-all; overflow-wrap: anywhere; }
+    .q.show .exp { display: block; }
+    .exp .lbl { font-weight: 700; display: block; margin-bottom: 4px; }
+    .empty { text-align: center; color: var(--muted); padding: 34px 0; }
+    .more-wrap { text-align: center; }
+    @media (prefers-reduced-motion: reduce) { .caret { transition: none; } }
+  </style>
+</head>
+<body>
+  <!-- ===== 로그인 ===== -->
+  <section id="login-view">
+    <h1>모의고사 문제은행</h1>
+    <p>발급받은 허용코드를 입력하세요.</p>
+    <div class="login-row">
+      <input id="code-input" type="text" placeholder="허용코드" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <button id="login-btn" class="btn" type="button">입장</button>
+    </div>
+    <div id="login-error"></div>
+  </section>
+
+  <!-- ===== 메인 ===== -->
+  <div id="app-view" class="wrap" hidden>
+    <header class="app-header">
+      <h1>모의고사 문제은행</h1>
+      <div class="user-box">
+        <span class="user-code" id="user-code"></span>
+        <button id="logout-btn" class="btn ghost sm" type="button">나가기</button>
+      </div>
+    </header>
+
+    <section class="panel" aria-labelledby="h-exam">
+      <div class="panel-h">
+        <h2 id="h-exam">시험지</h2>
+        <button id="sets-all" class="btn ghost sm" type="button">전체 선택</button>
+        <button id="sets-none" class="btn ghost sm" type="button">전체 해제</button>
+      </div>
+      <div class="orgs" id="orgs"></div>
+      <div class="picked" id="picked"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="h-scope">
+      <div class="panel-h"><h2 id="h-scope">출제범위</h2></div>
+      <div class="select-row">
+        <div><label for="sel-subject">시험과목</label><select id="sel-subject"></select></div>
+        <div><label for="sel-field">분야</label><select id="sel-field"></select></div>
+        <div><label for="sel-area">영역</label><select id="sel-area"></select></div>
+      </div>
+      <div class="filter-foot">
+        <span class="muted" id="match-count"></span>
+        <button id="load-btn" class="btn" type="button">문제 보기</button>
+      </div>
+    </section>
+
+    <div class="toolbar">
+      <span id="progress"></span>
+      <span class="spacer"></span>
+      <button id="toggle-all" class="btn ghost sm" type="button" hidden>전체 정답 토글</button>
+      <span id="save-status" hidden></span>
+    </div>
+
+    <main class="paper" id="paper" aria-live="polite"></main>
+    <div class="more-wrap"><button id="more-btn" class="btn ghost" type="button" hidden></button></div>
+  </div>
+
+<script>
+// =====================================================================
+// 설정 (기존 문제은행과 같은 Supabase 프로젝트·같은 허용코드)
+// =====================================================================
+const SUPABASE_URL = "https://jqycexlruwaosumitoyz.supabase.co";
+const SUPABASE_KEY = "sb_publishable_nmdXzyt-7nGIKsCPPkjDYQ_AsMsn-M4";
+const IMAGE_BASE = `${SUPABASE_URL}/storage/v1/object/public/mock-images/`;
+const CODE_STORAGE_KEY = "qb_code";      // 기존 사이트와 같은 키 → 한 번 입장하면 두 사이트 모두 자동 입장
+const PAGE_SIZE = 30;
+const CIRCLED = ["①", "②", "③", "④", "⑤"];
+const ORGS = [
+  { code: "b", name: "범문에듀케이션", short: "범문", color: "var(--org-b)" },
+  { code: "e", name: "에듀", short: "에듀", color: "var(--org-e)" },
+  { code: "w", name: "우림", short: "우림", color: "var(--org-w)" }
+];
+
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[c]));
+const org = set => ORGS.find(o => o.code === set[0]) || { short: set, color: "var(--muted)", name: set };
+const setLabel = set => { const [, y, r] = set.split("_"); return `${org(set).short} 20${y}년 ${r}회`; };
+function countBy(rows, key) {
+  const m = new Map();
+  rows.forEach(r => { if (r[key] != null) m.set(r[key], (m.get(r[key]) || 0) + r.n); });
+  return [...m.entries()].sort((a, b) => String(a[0]).localeCompare(String(b[0]), "ko"));
+}
+
+// =====================================================================
+// 상태
+// =====================================================================
+const S = { code: null, catalog: [], allSets: [], selSets: new Set(), subject: "", field: "", area: "",
+            questions: [], shown: new Set(), rendered: 0, lastGroup: null, reqId: 0 };
+const $ = id => document.getElementById(id);
+
+async function rpc(name, args, opts) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`, {
+    method: "POST",
+    headers: { "apikey": SUPABASE_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify(args || {}),
+    keepalive: !!(opts && opts.keepalive)
+  });
+  if (!res.ok) {
+    let msg = ""; try { msg = (await res.json()).message || ""; } catch (e) {}
+    const err = new Error(msg || ("HTTP " + res.status)); err.status = res.status; throw err;
+  }
+  const t = await res.text();
+  return t ? JSON.parse(t) : null;
+}
+
+// =====================================================================
+// 로그인
+// =====================================================================
+function storeGet() { try { return localStorage.getItem(CODE_STORAGE_KEY); } catch (e) { return null; } }
+function storeSet(v) { try { localStorage.setItem(CODE_STORAGE_KEY, v); } catch (e) {} }
+function storeDel() { try { localStorage.removeItem(CODE_STORAGE_KEY); } catch (e) {} }
+
+async function login(code, silent) {
+  code = (code || "").trim();
+  if (!code) { $("login-error").textContent = "코드를 입력하세요."; return; }
+  $("login-btn").disabled = true;
+  $("login-error").textContent = silent ? "" : "확인 중...";
+  try {
+    const ok = await rpc("verify_code", { p_code: code });
+    if (ok !== true) { storeDel(); $("login-error").textContent = silent ? "" : "허용되지 않은 코드입니다."; return; }
+    const [catalog, my] = await Promise.all([rpc("mock_get_catalog", { p_code: code }), rpc("mock_get_my_state", { p_code: code })]);
+    S.code = code;
+    S.catalog = catalog || [];
+    S.shown = new Set(((my && my.states) || []).filter(x => x.answer_shown).map(x => x.question_code));
+    storeSet(code);
+    enterApp((my && my.filters) || {});
+  } catch (e) {
+    $("login-error").textContent = "접속에 실패했습니다. 잠시 후 다시 시도해 주세요. (" + e.message + ")";
+  } finally {
+    $("login-btn").disabled = false;
+  }
+}
+
+function logout() {
+  flush({ keepalive: false });
+  storeDel();
+  Object.assign(S, { code: null, questions: [], shown: new Set(), rendered: 0, lastGroup: null });
+  $("paper").innerHTML = "";
+  $("app-view").hidden = true; $("login-view").hidden = false;
+  $("code-input").value = ""; $("login-error").textContent = ""; $("code-input").focus();
+}
+
+// =====================================================================
+// 시험지 (기관별 체크박스 드롭다운)
+// =====================================================================
+function enterApp(saved) {
+  $("login-view").hidden = true; $("app-view").hidden = false;
+  $("user-code").textContent = S.code;
+  S.allSets = [...new Set(S.catalog.map(r => r.exam_set))].sort();
+  const keep = Array.isArray(saved.exam_sets) ? saved.exam_sets.filter(s => S.allSets.includes(s)) : [];
+  S.selSets = new Set(keep);
+  S.subject = saved.subject || ""; S.field = saved.field || ""; S.area = saved.area || "";
+  buildOrgs(); syncOrgs(); refreshSelects();
+  if (keep.length) loadQuestions();
+  else { $("paper").innerHTML = `<div class="empty">시험지를 고르고 [문제 보기]를 누르세요.</div>`; updateToolbar(); }
+}
+
+function buildOrgs() {
+  $("orgs").innerHTML = ORGS.map(o => {
+    const sets = S.allSets.filter(s => s[0] === o.code);
+    if (!sets.length) return "";
+    const years = {};
+    sets.forEach(s => { const [, y, r] = s.split("_"); (years[y] ??= []).push(s); });
+    const rows = Object.keys(years).sort().map(y => `<div class="yr"><div class="yr-label">20${y}년</div><div class="rounds">${
+      years[y].sort((a, b) => +a.split("_")[2] - +b.split("_")[2]).map(s =>
+        `<label class="chipcb"><input type="checkbox" id="cb-${s}" data-set="${s}"><span>${s.split("_")[2]}회</span></label>`).join("")}</div></div>`).join("");
+    return `<div class="dd" data-org="${o.code}">
+      <button class="dd-btn" type="button" aria-expanded="false"><span class="dot" style="background:${o.color}"></span><span class="dd-name">${o.name}</span><span class="dd-count" id="cnt-${o.code}"></span><span class="caret" aria-hidden="true">▾</span></button>
+      <div class="dd-menu" hidden>
+        <label class="dd-all"><input type="checkbox" id="all-${o.code}" data-all="${o.code}"> 전체 ${sets.length}개 회차</label>
+        ${rows}
+      </div></div>`;
+  }).join("");
+}
+
+function closeMenus() {
+  document.querySelectorAll(".dd.open").forEach(d => {
+    d.classList.remove("open"); d.querySelector(".dd-menu").hidden = true;
+    d.querySelector(".dd-btn").setAttribute("aria-expanded", "false");
+  });
+}
+
+function syncOrgs() {
+  ORGS.forEach(o => {
+    const sets = S.allSets.filter(s => s[0] === o.code);
+    const cnt = $(`cnt-${o.code}`); if (!cnt) return;
+    const n = sets.filter(s => S.selSets.has(s)).length;
+    cnt.textContent = n ? `${n}/${sets.length}` : "선택 안 함";
+    const all = $(`all-${o.code}`); all.checked = n === sets.length; all.indeterminate = n > 0 && n < sets.length;
+    sets.forEach(s => { $(`cb-${s}`).checked = S.selSets.has(s); });
+  });
+  const ids = [...S.selSets].sort();
+  $("picked").innerHTML = ids.length
+    ? ids.map(s => `<span class="tag"><span class="dot" style="background:${org(s).color}"></span>${esc(setLabel(s))}</span>`).join("")
+    : `<span class="muted">회차를 하나 이상 고르세요.</span>`;
+}
+
+function setAllSets(on) { S.selSets = new Set(on ? S.allSets : []); syncOrgs(); refreshSelects(); }
+
+// =====================================================================
+// 과목·분야·영역 (기존 사이트와 같은 드롭다운, 문항 수 표시)
+// =====================================================================
+function fillSelect(sel, entries, current) {
+  const total = entries.reduce((a, e) => a + e[1], 0);
+  sel.innerHTML = `<option value="">전체 (${total})</option>` +
+    entries.map(([v, n]) => `<option value="${esc(v)}">${esc(v)} (${n})</option>`).join("");
+  sel.value = entries.some(e => e[0] === current) ? current : "";
+  return sel.value;
+}
+function refreshSelects() {
+  let rows = S.catalog.filter(r => S.selSets.has(r.exam_set));
+  S.subject = fillSelect($("sel-subject"), countBy(rows, "subject"), S.subject);
+  if (S.subject) rows = rows.filter(r => r.subject === S.subject);
+  S.field = fillSelect($("sel-field"), countBy(rows, "field"), S.field);
+  if (S.field) rows = rows.filter(r => r.field === S.field);
+  S.area = fillSelect($("sel-area"), countBy(rows, "area"), S.area);
+  if (S.area) rows = rows.filter(r => r.area === S.area);
+  const n = rows.reduce((a, r) => a + r.n, 0);
+  $("match-count").textContent = S.selSets.size ? `회차 ${S.selSets.size}개 · 선택한 조건 총 ${n}문항` : "회차를 하나 이상 선택하세요.";
+  $("load-btn").disabled = !S.selSets.size || n === 0;
+}
+
+// =====================================================================
+// 문항 불러오기 / 그리기
+// =====================================================================
+async function loadQuestions() {
+  if (!S.selSets.size) return;
+  const myReq = ++S.reqId;
+  $("paper").innerHTML = `<div class="empty">불러오는 중...</div>`;
+  $("more-btn").hidden = true; $("load-btn").disabled = true;
+  const filters = { exam_sets: [...S.selSets].sort(), subject: S.subject || null, field: S.field || null, area: S.area || null };
+  try {
+    const data = await rpc("mock_get_questions", { p_code: S.code, p_exam_sets: filters.exam_sets,
+      p_subject: filters.subject, p_field: filters.field, p_area: filters.area });
+    if (myReq !== S.reqId) return;
+    S.questions = data || []; S.rendered = 0; S.lastGroup = null;
+    $("paper").innerHTML = "";
+    renderMore();
+    rpc("mock_save_filters", { p_code: S.code, p_filters: filters }).catch(() => {});
+  } catch (e) {
+    if (myReq !== S.reqId) return;
+    if (/invalid code/i.test(e.message)) { logout(); return; }
+    $("paper").innerHTML = `<div class="empty">불러오지 못했습니다. (${esc(e.message)})</div>`;
+  } finally {
+    if (myReq === S.reqId) refreshSelects();
+    updateToolbar();
+  }
+}
+
+function renderMore() {
+  const paper = $("paper");
+  if (!S.questions.length) {
+    paper.innerHTML = `<div class="empty">조건에 맞는 문항이 없습니다.</div>`;
+    $("more-btn").hidden = true; updateToolbar(); return;
+  }
+  const end = Math.min(S.rendered + PAGE_SIZE, S.questions.length);
+  for (let i = S.rendered; i < end; i++) {
+    const q = S.questions[i], card = buildCard(q);
+    const common = (q.common_text || "").trim();
+    if (!common) { paper.appendChild(card); S.lastGroup = null; continue; }
+    const key = q.exam_set + "|" + q.session + "|" + common;
+    if (S.lastGroup && S.lastGroup.key === key) {           // 같은 공통지문이면 같은 상자에 이어 붙임
+      S.lastGroup.el.appendChild(card);
+      S.lastGroup.nums.push(q.q_no);
+      S.lastGroup.lbl.textContent = groupLabel(S.lastGroup.nums);
+    } else {
+      const g = document.createElement("div"); g.className = "group";
+      const c = document.createElement("div"); c.className = "common";
+      const lbl = document.createElement("span"); lbl.className = "lbl";
+      c.appendChild(lbl); c.appendChild(document.createTextNode(common));
+      g.appendChild(c); g.appendChild(card); paper.appendChild(g);
+      S.lastGroup = { key, el: g, lbl, nums: [q.q_no] };
+      lbl.textContent = groupLabel(S.lastGroup.nums);
+    }
+  }
+  S.rendered = end;
+  const remain = S.questions.length - S.rendered;
+  $("more-btn").hidden = remain <= 0;
+  if (remain > 0) $("more-btn").textContent = `더 보기 (${remain}문항 남음)`;
+  updateToolbar();
+}
+function groupLabel(nums) {
+  const a = nums[0], b = nums[nums.length - 1];
+  return b !== a ? `공통 사례 · ${a}~${b}번` : `사례 · ${a}번`;
+}
+
+function buildCard(q) {
+  const card = document.createElement("article");
+  card.className = "q" + (S.shown.has(q.question_code) ? " show" : "");
+  card.dataset.code = q.question_code;
+  const o = org(q.exam_set);
+  const sub = (q.sub_text || "").trim();
+  let subHtml = "";
+  if (sub || q.image_path) {
+    subHtml = `<div class="sub">${sub ? `<div>${esc(sub)}</div>` : ""}${q.image_path
+      ? `<img src="${esc(IMAGE_BASE + q.image_path)}" alt="${q.q_no}번 문항 사진" loading="lazy" decoding="async">` : ""}</div>`;
+  }
+  const opts = [1, 2, 3, 4, 5].map(i => {
+    const t = q["choice_" + i]; if (t == null || t === "") return "";
+    return `<li class="${q.answer === i ? "ans" : ""}"><span class="c">${CIRCLED[i - 1]}</span><span>${esc(t)}</span></li>`;
+  }).join("");
+  const exp = (q.explanation || "").trim();
+  card.innerHTML = `
+    <div class="meta"><span class="dot" style="background:${o.color}"></span><span class="src">${esc(setLabel(q.exam_set))} · ${q.session}교시</span><span class="cls">${esc(q.field || "")} › ${esc(q.area || "")}</span></div>
+    <p class="stem"><span class="no">${q.q_no}.</span>${esc(q.main_text)}</p>
+    ${subHtml}
+    <ol class="opts">${opts}</ol>
+    <button class="btn-answer" type="button">정답</button>
+    <div class="exp"><span class="lbl">정답 ${q.answer ? CIRCLED[q.answer - 1] : "-"}</span>${exp ? esc(exp) : "해설이 없는 문항입니다."}</div>`;
+  const img = card.querySelector("img");
+  if (img) img.addEventListener("error", () => { img.replaceWith(Object.assign(document.createElement("div"), { className: "img-err", textContent: "사진을 불러오지 못했습니다." })); });
+  card.querySelector(".btn-answer").addEventListener("click", () => {
+    const on = card.classList.toggle("show");
+    if (on) S.shown.add(q.question_code); else S.shown.delete(q.question_code);
+    queueSave(q.question_code, on); updateToolbar();
+  });
+  return card;
+}
+
+function updateToolbar() {
+  const total = S.questions.length;
+  const seen = S.questions.reduce((a, q) => a + (S.shown.has(q.question_code) ? 1 : 0), 0);
+  $("progress").textContent = total ? `불러온 문항 ${total}개 · 정답 확인 ${seen}개` : "";
+  $("toggle-all").hidden = !total;
+}
+function toggleAll() {
+  if (!S.questions.length) return;
+  const target = !S.questions.every(q => S.shown.has(q.question_code));
+  S.questions.forEach(q => { if (target) S.shown.add(q.question_code); else S.shown.delete(q.question_code); queueSave(q.question_code, target); });
+  document.querySelectorAll(".q").forEach(c => c.classList.toggle("show", target));
+  updateToolbar();
+}
+
+// =====================================================================
+// 정답 확인 기록 저장 (묶어서 저장, 실패 시 눌러서 재시도)
+// =====================================================================
+let pending = new Map(), saveTimer = null, saving = false;
+function setSaveStatus(kind) {
+  const el = $("save-status"); el.hidden = false; el.className = kind;
+  el.textContent = kind === "saving" ? "저장 중..." : kind === "saved" ? "저장됨" : "저장 실패 · 눌러서 다시 시도";
+}
+function queueSave(code, on) {
+  pending.set(code, on); setSaveStatus("saving");
+  clearTimeout(saveTimer); saveTimer = setTimeout(() => flush(), 500);
+}
+async function flush(opts) {
+  clearTimeout(saveTimer);
+  if (!pending.size || !S.code) return;
+  if (saving) { saveTimer = setTimeout(() => flush(opts), 300); return; }
+  const code = S.code, batch = [...pending.entries()];
+  pending = new Map(); saving = true;
+  try {
+    await rpc("mock_save_states", { p_code: code, p_items: batch.map(([question_code, answer_shown]) => ({ question_code, answer_shown })) }, opts);
+    setSaveStatus(pending.size ? "saving" : "saved");
+  } catch (e) {
+    batch.forEach(([k, v]) => { if (!pending.has(k)) pending.set(k, v); });
+    setSaveStatus("error");
+  } finally {
+    saving = false;
+    if (pending.size && $("save-status").className !== "error") saveTimer = setTimeout(() => flush(), 300);
+  }
+}
+
+// =====================================================================
+// 이벤트
+// =====================================================================
+$("login-btn").addEventListener("click", () => login($("code-input").value, false));
+$("code-input").addEventListener("keydown", e => { if (e.key === "Enter") login($("code-input").value, false); });
+$("logout-btn").addEventListener("click", logout);
+$("sets-all").addEventListener("click", () => setAllSets(true));
+$("sets-none").addEventListener("click", () => setAllSets(false));
+$("orgs").addEventListener("click", e => {
+  const b = e.target.closest(".dd-btn"); if (!b) return;
+  const dd = b.parentElement, open = !dd.classList.contains("open");
+  closeMenus();
+  if (open) { dd.classList.add("open"); dd.querySelector(".dd-menu").hidden = false; b.setAttribute("aria-expanded", "true"); }
+});
+$("orgs").addEventListener("change", e => {
+  const t = e.target;
+  if (t.dataset.all) S.allSets.filter(s => s[0] === t.dataset.all).forEach(s => t.checked ? S.selSets.add(s) : S.selSets.delete(s));
+  else if (t.dataset.set) t.checked ? S.selSets.add(t.dataset.set) : S.selSets.delete(t.dataset.set);
+  syncOrgs(); refreshSelects();
+});
+document.addEventListener("click", e => { if (!e.target.closest(".dd")) closeMenus(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeMenus(); });
+$("sel-subject").addEventListener("change", e => { S.subject = e.target.value; S.field = ""; S.area = ""; refreshSelects(); });
+$("sel-field").addEventListener("change", e => { S.field = e.target.value; S.area = ""; refreshSelects(); });
+$("sel-area").addEventListener("change", e => { S.area = e.target.value; refreshSelects(); });
+$("load-btn").addEventListener("click", () => { closeMenus(); loadQuestions(); });
+$("more-btn").addEventListener("click", renderMore);
+$("toggle-all").addEventListener("click", toggleAll);
+$("save-status").addEventListener("click", () => { if ($("save-status").className === "error") flush(); });
+window.addEventListener("pagehide", () => flush({ keepalive: true }));
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flush({ keepalive: true }); });
+
+(function init() {
+  const saved = storeGet();
+  if (saved) { $("code-input").value = saved; login(saved, true); }
+})();
+</script>
+</body>
+</html>
